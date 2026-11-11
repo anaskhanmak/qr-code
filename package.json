@@ -1,0 +1,29 @@
+{
+  "name": "loopmark",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/redirect",
+    "packages/db"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @loopmark/web",
+    "build": "npm run build --workspace @loopmark/web",
+    "lint": "npm run lint --workspace @loopmark/web",
+    "typecheck": "npm run typecheck --workspace @loopmark/web",
+    "test": "npm run test --workspace @loopmark/web",
+    "db:generate": "prisma generate --schema=packages/db/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=packages/db/prisma/schema.prisma",
+    "db:seed": "npm run seed --workspace @loopmark/db",
+    "redirect:dev": "npm run dev --workspace @loopmark/redirect",
+    "redirect:deploy": "npm run deploy --workspace @loopmark/redirect",
+    "redirect:typecheck": "npm run typecheck --workspace @loopmark/redirect",
+    "redirect:test": "npm run test --workspace @loopmark/redirect"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.2": true
+  }
+}

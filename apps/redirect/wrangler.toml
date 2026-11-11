@@ -1,0 +1,12 @@
+name = "loopmark-short-links"
+main = "src/index.ts"
+compatibility_date = "2026-11-11"
+
+[[kv_namespaces]]
+binding = "SHORT_LINK_CACHE"
+# Use a local-only ID for `wrangler dev`; replace it with a real KV namespace ID before deploy.
+id = "00000000000000000000000000000000"
+
+[vars]
+APP_ORIGIN = "https://loopmark.app"
+CACHE_TTL_SECONDS = "30"
