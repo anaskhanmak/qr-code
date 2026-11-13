@@ -21,7 +21,7 @@ Google sign-in requires OAuth client credentials with `http://localhost:3000/api
 
 ## Dynamic short links
 
-The dynamic QR builder supports website redirects, hosted business cards (including a downloadable vCard), PDF links, and multiple-link pages. A signed-in workspace member can create and edit dynamic codes; edits preserve the existing slug. The builder keeps an unfinished draft in browser storage so it can be resumed after signing in. The resolver returns active URL destinations to the redirect service and sends hosted pages, paused codes, and expired codes to the web app.
+The dynamic QR builder supports website redirects, hosted business cards (including a downloadable vCard), PDF links, multiple-link pages, social profiles, coupons, products, videos, image galleries, external links or captured lead forms, feedback pages, event pages with `.ics` downloads, and iOS/Android app-store routing. PNG/SVG exports support sizes through 4000 px and designs are stored with saved codes. A signed-in workspace member can create and edit dynamic codes; edits preserve the existing slug. The builder keeps an unfinished draft in browser storage so it can be resumed after signing in. Workspace owners/admins can invite verified-email teammates, manage member roles/removal, and issue scoped API keys. The versioned API currently supports listing and creating dynamic QR codes. Dashboard favorites, pause/resume, per-code analytics, and form-response inbox/export are also available. Scan recording currently uses deferred PostgreSQL writes, not a durable queue.
 
 The optional Cloudflare Worker in `apps/redirect` resolves short links from KV cache and falls back to the app's database-backed resolver API. Set `NEXT_PUBLIC_SHORT_URL` to the public short-link origin and configure `REDIRECT_REVALIDATION_SECRET` identically in the app and Worker. Before deploying the Worker:
 
@@ -44,6 +44,10 @@ PDF codes currently link to a publicly hosted HTTPS PDF; file uploads and storag
 - `npm run redirect:test`
 - `npx prisma migrate status --schema=packages/db/prisma/schema.prisma`
 
-## Current delivery phase
+## Deployment readiness
 
-Phases 1 and 2 provide a responsive marketing shell, a free static QR generator (URL, text, email, SMS, phone, Wi-Fi, vCard, and location), database schema and migrations, email/password plus Google authentication foundations, and dynamic QR creation/editing for four types with a Cloudflare Worker short-link resolver. Scan analytics, design studio and server-side exports, file uploads, billing, additional QR types, team/API features, and production deployment remain subsequent phases.
+The application has not been deployed. Before a production launch, configure the production database, `AUTH_SECRET`, `SCAN_HASH_SECRET`, HTTPS `NEXT_PUBLIC_APP_URL`, email provider/sender, OAuth credentials and callback URLs as applicable, and Cloudflare KV/Worker values if using the Worker. Set `ADMIN_EMAILS` to an explicit allowlist. Apply migrations with `npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma` only after verifying the target database and backup/recovery plan. Do not copy development secrets to production.
+
+CI checks lint, typecheck, unit tests, Prisma migrations against an ephemeral PostgreSQL service, production build, and Worker checks. Production deployment, backups/restore, durable scan queue, monitoring, and external provider delivery still require configuration and operational verification.
+
+The authenticated account export is available at `/api/account/export`. Configure `ANALYTICS_RETENTION_SECRET` and `ANALYTICS_RETENTION_DAYS` and schedule an authenticated `POST /api/cron/analytics-retention` to run retention cleanup; the endpoint is disabled until a secret is configured. The default retention is 365 days (allowed range: 30–3650 days).

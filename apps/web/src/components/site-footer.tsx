@@ -6,9 +6,16 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-sm text-[#647d75] sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <Link href="/" className="font-bold text-[#173a32]">loopmark</Link>
         <p>Make a mark that keeps working.</p>
-        <nav aria-label="Footer navigation" className="flex gap-5">
+        <nav aria-label="Footer navigation" className="flex flex-wrap gap-5">
+          <Link className="hover:text-[#173a32]" href="/about">About</Link>
           <Link className="hover:text-[#173a32]" href="/free-qr-codes">Free QR codes</Link>
           <Link className="hover:text-[#173a32]" href="/dynamic-qr-codes">Dynamic QR</Link>
+          <Link className="hover:text-[#173a32]" href="/pricing">Pricing</Link>
+          <Link className="hover:text-[#173a32]" href="/blog">Blog</Link>
+          <Link className="hover:text-[#173a32]" href="/contact-enterprise">Enterprise</Link>
+          <Link className="hover:text-[#173a32]" href="/privacy">Privacy</Link>
+          <Link className="hover:text-[#173a32]" href="/terms">Terms</Link>
+          <Link className="hover:text-[#173a32]" href="/refund-policy">Refunds</Link>
           <Link className="hover:text-[#173a32]" href="/login">Account</Link>
         </nav>
       </div>

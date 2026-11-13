@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { DynamicQRBuilder, type DynamicQRInitialData } from "@/components/dynamic-qr-builder";
 import { db } from "@loopmark/db";
 import { parseDynamicContent } from "@/lib/dynamic-qr";
+import { parseQRDesign } from "@/lib/qr-design";
 
 export const metadata: Metadata = {
   title: "Dynamic QR Code Builder",
@@ -28,11 +29,11 @@ export default async function DynamicQRBuilderPage({
         kind: "DYNAMIC",
         workspace: { members: { some: { userId: session.user.id, role: { in: ["OWNER", "ADMIN", "EDITOR"] } } } },
       },
-      select: { id: true, name: true, slug: true, content: true },
+      select: { id: true, name: true, slug: true, content: true, design: true },
     });
     const content = qrCode ? parseDynamicContent(qrCode.content) : null;
     if (!qrCode || !qrCode.slug || !content) notFound();
-    initialData = { id: qrCode.id, name: qrCode.name, slug: qrCode.slug, content };
+    initialData = { id: qrCode.id, name: qrCode.name, slug: qrCode.slug, content, design: parseQRDesign(qrCode.design) };
   }
   return (
     <div className="mx-auto max-w-7xl px-5 pb-20 pt-10 sm:px-8 sm:pb-28 sm:pt-16">

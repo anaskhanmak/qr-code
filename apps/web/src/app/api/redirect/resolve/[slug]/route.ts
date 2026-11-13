@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db } from "@loopmark/db";
 import { parseDynamicContent, resolveQrDestination } from "@/lib/dynamic-qr";
+import { recordQrScan } from "@/lib/scan-analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
@@ -16,7 +17,7 @@ export async function GET(
 
   const qrCode = await db.qRCode.findUnique({
     where: { slug },
-    select: { kind: true, status: true, content: true, expiresAt: true },
+    select: { id: true, workspaceId: true, kind: true, status: true, content: true, expiresAt: true },
   });
   if (!qrCode || qrCode.kind !== "DYNAMIC") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -29,7 +30,7 @@ export async function GET(
   const content = parseDynamicContent(qrCode.content);
   if (!content) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       slug,
       status,
@@ -38,4 +39,14 @@ export async function GET(
     },
     { headers: { "Cache-Control": "no-store" } },
   );
+
+  after(async () => {
+    try {
+      await recordQrScan({ qrCodeId: qrCode.id, workspaceId: qrCode.workspaceId, request });
+    } catch (error) {
+      console.error("Failed to record QR scan analytics.", error);
+    }
+  });
+
+  return response;
 }

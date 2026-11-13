@@ -111,6 +111,25 @@ describe("Loopmark short-link edge worker", () => {
     expect(response.headers.get("location")).toBe(`https://app.loopmark.test/r/${slug}`);
   });
 
+  it("fails safely when a cached URL destination is unsafe", async () => {
+    const { environment } = createEnvironment({
+      slug,
+      status: "ACTIVE",
+      type: "url",
+      destination: "javascript:alert(1)",
+    });
+    const { context } = createContext();
+
+    const response = await worker.fetch(
+      new Request(`https://go.loopmark.test/${slug}`),
+      environment,
+      context,
+    );
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get("content-type")).toContain("text/html");
+  });
+
   it("requires the revalidation secret before clearing cached slugs", async () => {
     const { environment, cache } = createEnvironment({ slug, status: "ACTIVE", type: "url", destination: "https://example.com" });
     const { context } = createContext();

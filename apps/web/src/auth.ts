@@ -2,15 +2,10 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { compare } from "bcryptjs";
-import { z } from "zod";
 import { db } from "@loopmark/db";
-import { signInPasswordSchema } from "@/lib/password";
+import { getAuthorizedUser } from "@/lib/auth-credentials";
 
-const credentialsSchema = z.object({
-  email: z.string().trim().email().transform((email) => email.toLowerCase()),
-  password: signInPasswordSchema,
-});
+export { getAuthorizedUser } from "@/lib/auth-credentials";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
@@ -31,13 +26,54 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(rawCredentials) {
-        const parsed = credentialsSchema.safeParse(rawCredentials);
-        if (!parsed.success) return null;
-        const user = await db.user.findUnique({ where: { email: parsed.data.email } });
-        if (!user?.passwordHash || !user.emailVerified) return null;
-        if (!(await compare(parsed.data.password, user.passwordHash))) return null;
-        return { id: user.id, name: user.name, email: user.email };
+        if (!rawCredentials || typeof rawCredentials !== "object") return null;
+        const email = typeof rawCredentials.email === "string" ? rawCredentials.email : "";
+        const password = typeof rawCredentials.password === "string" ? rawCredentials.password : "";
+        return getAuthorizedUser(email, password);
       },
+
+      // async authorize(rawCredentials) {
+      //   console.log("1. Authorize called");
+
+      //   const parsed = credentialsSchema.safeParse(rawCredentials);
+
+      //   if (!parsed.success) {
+      //     console.log("2. Validation failed:", parsed.error.flatten());
+      //     return null;
+      //   }
+
+      //   console.log("2. Credentials validated");
+
+      //   const user = await db.user.findUnique({
+      //     where: { email: parsed.data.email },
+      //   });
+
+      //   if (!user) {
+      //     console.log("3. User not found");
+      //     return null;
+      //   }
+
+      //   console.log("3. User found");
+      //   console.log("4. Has password:", !!user.passwordHash);
+      //   console.log("5. Email verified:", !!user.emailVerified);
+
+      //   if (!user.passwordHash) return null;
+      //   if (!user.emailVerified) return null;
+
+      //   const isValid = await compare(parsed.data.password, user.passwordHash);
+
+      //   console.log("6. Password valid:", isValid);
+
+      //   if (!isValid) return null;
+
+      //   console.log("7. Login successful");
+
+      //   return {
+      //     id: user.id,
+      //     name: user.name,
+      //     email: user.email,
+      //   };
+      // },
     }),
   ],
   callbacks: {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -13,10 +14,13 @@ const productTypes = [
   ["More ways", "Share a note, location, email, phone number, or SMS."],
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <>
       <script
+        nonce={nonce}
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({

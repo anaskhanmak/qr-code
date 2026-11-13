@@ -23,7 +23,7 @@ export default async function LoginPage({
           googleEnabled={Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)}
         />
         <p className="mt-7 text-center text-xs leading-5 text-[#84968d]">
-          New to Loopmark? <Link href="/register" className="focus-ring rounded font-semibold text-[#315947] underline underline-offset-4">Create a free account</Link>
+          New to Loopmark?           <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="focus-ring rounded font-semibold text-[#315947] underline underline-offset-4">Create a free account</Link>
         </p>
       </div>
     </div>

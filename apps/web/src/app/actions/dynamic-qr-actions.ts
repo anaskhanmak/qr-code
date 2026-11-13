@@ -7,6 +7,9 @@ import { db } from "@loopmark/db";
 import { dynamicQRTypes, parseDynamicContent } from "@/lib/dynamic-qr";
 import { generateSlug } from "@/lib/dynamic-qr";
 import { invalidateRedirectCache } from "@/lib/redirect-cache";
+import { canCreateDynamicCode, getPlanUpgradeMessage } from "@/lib/plans";
+import { qrDesignSchema } from "@/lib/qr-design";
+import type { z } from "zod";
 
 export type SaveDynamicQRState = {
   error?: string;
@@ -54,6 +57,18 @@ export async function saveDynamicQRAction(
   });
   if (!membership) return { error: "You do not have permission to create QR codes in a workspace." };
 
+  const rawDesign = formData.get("design");
+  let design: z.infer<typeof qrDesignSchema> | null = null;
+  if (typeof rawDesign === "string") {
+    try {
+      const parsedDesign = qrDesignSchema.safeParse(JSON.parse(rawDesign));
+      if (!parsedDesign.success) return { error: "The QR design settings are invalid." };
+      design = parsedDesign.data;
+    } catch {
+      return { error: "The QR design settings could not be read." };
+    }
+  }
+
   const existingId = formData.get("qrId");
   if (typeof existingId === "string" && existingId) {
     if (existingId.length > 30) return { error: "This QR code could not be found in your workspace." };
@@ -70,7 +85,7 @@ export async function saveDynamicQRAction(
     try {
       await db.qRCode.update({
         where: { id: existing.id },
-        data: { name: name.trim(), content },
+        data: { name: name.trim(), content, ...(design ? { design } : {}) },
       });
     } catch (error) {
       console.error("Could not update dynamic QR code.", error);
@@ -87,6 +102,14 @@ export async function saveDynamicQRAction(
     };
   }
 
+  const workspacePlanId = "free";
+  const dynamicCodeCount = await db.qRCode.count({
+    where: { workspaceId: membership.workspaceId, kind: "DYNAMIC" },
+  });
+  if (!canCreateDynamicCode(workspacePlanId, dynamicCodeCount)) {
+    return { error: getPlanUpgradeMessage(workspacePlanId) };
+  }
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const qrCode = await db.qRCode.create({
@@ -95,6 +118,7 @@ export async function saveDynamicQRAction(
           name: name.trim(),
           kind: "DYNAMIC",
           content,
+          ...(design ? { design } : {}),
           slug: generateSlug(),
         },
         select: { slug: true },

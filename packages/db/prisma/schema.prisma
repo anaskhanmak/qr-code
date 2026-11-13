@@ -25,20 +25,42 @@ enum QRStatus {
   EXPIRED
 }
 
+enum ScanClassification {
+  HUMAN
+  BOT
+  PREVIEW
+}
+
+enum DomainVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum ApiKeyScope {
+  QR_READ
+  QR_WRITE
+  ANALYTICS_READ
+  WEBHOOKS_WRITE
+  WORKSPACE_READ
+  WORKSPACE_WRITE
+}
+
 model User {
-  id                    String               @id @default(cuid())
-  name                  String?
-  email                 String               @unique
-  emailVerified         DateTime?
-  image                 String?
-  passwordHash          String?
-  accounts              Account[]
-  sessions              Session[]
-  memberships           WorkspaceMember[]
-  verificationTokens    EmailVerificationToken[]
-  passwordResetTokens   PasswordResetToken[]
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                  String                   @id @default(cuid())
+  name                String?
+  email               String                   @unique
+  emailVerified       DateTime?
+  image               String?
+  passwordHash        String?
+  accounts            Account[]
+  sessions            Session[]
+  memberships         WorkspaceMember[]
+  invitationsSent     WorkspaceInvitation[]    @relation("InvitationSender")
+  verificationTokens  EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 }
 
 model Account {
@@ -98,12 +120,18 @@ model PasswordResetToken {
 }
 
 model Workspace {
-  id          String            @id @default(cuid())
-  name        String
-  members     WorkspaceMember[]
-  qrCodes     QRCode[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id            String                @id @default(cuid())
+  name          String
+  members       WorkspaceMember[]
+  invitations   WorkspaceInvitation[]
+  qrCodes       QRCode[]
+  customDomains CustomDomain[]
+  apiKeys       ApiKey[]
+  webhooks      WebhookEndpoint[]
+  scanEvents    QRCodeScan[]
+  formResponses QRFormResponse[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 }
 
 model WorkspaceMember {
@@ -118,21 +146,136 @@ model WorkspaceMember {
   @@index([workspaceId, role])
 }
 
-model QRCode {
-  id          String    @id @default(cuid())
+model WorkspaceInvitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole @default(EDITOR)
+  token       String        @unique
+  invitedById String?
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User?         @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, email])
+}
+
+model CustomDomain {
+  id                String                   @id @default(cuid())
+  workspaceId       String
+  domain            String                   @unique
+  status            DomainVerificationStatus @default(PENDING)
+  verificationToken String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  workspace         Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+}
+
+model ApiKey {
+  id          String        @id @default(cuid())
   workspaceId String
   name        String
-  kind        QRKind
-  status      QRStatus @default(ACTIVE)
-  content     Json
-  design      Json?
-  slug        String?   @unique
+  keyHash     String        @unique
+  keyPrefix   String
+  scopes      ApiKeyScope[]
+  lastUsedAt  DateTime?
   expiresAt   DateTime?
-  favorite    Boolean   @default(false)
+  revokedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, revokedAt])
+}
+
+model WebhookEndpoint {
+  id          String    @id @default(cuid())
+  workspaceId String
+  url         String
+  secretHash  String
+  eventTypes  String[]
+  active      Boolean   @default(true)
+  lastSentAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId, active])
+}
+
+model QRCode {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  kind        QRKind
+  status      QRStatus     @default(ACTIVE)
+  content     Json
+  design      Json?
+  slug        String?      @unique
+  expiresAt   DateTime?
+  favorite    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scans       QRCodeScan[]
+  formResponses QRFormResponse[]
+
   @@index([workspaceId, kind, status])
   @@index([workspaceId, createdAt])
+}
+
+model QRCodeScan {
+  id             String             @id @default(cuid())
+  qrCodeId       String
+  workspaceId    String
+  classification ScanClassification @default(HUMAN)
+  hashedIp       String?
+  country        String?
+  city           String?
+  userAgent      String?
+  referrer       String?
+  language       String?
+  deviceType     String?
+  browser        String?
+  os             String?
+  isUnique       Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  qrCode         QRCode             @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([classification, createdAt])
+}
+
+model QRFormResponse {
+  id          String   @id @default(cuid())
+  qrCodeId    String
+  workspaceId String
+  kind        String
+  name        String?
+  email       String?
+  rating      Int?
+  message     String?  @db.Text
+  createdAt   DateTime @default(now())
+  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+model EnterpriseInquiry {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String?
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email, createdAt])
 }

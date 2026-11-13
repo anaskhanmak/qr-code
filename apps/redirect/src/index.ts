@@ -106,12 +106,16 @@ export default {
       return Response.redirect(new URL(`/r/${slug}`, environment.APP_ORIGIN), 302);
     }
 
-    if (entry.type === "url" && entry.destination) {
-      const destination = new URL(entry.destination);
-      if (destination.protocol !== "http:" && destination.protocol !== "https:") {
+    if (entry.type === "url" && typeof entry.destination === "string" && entry.destination.trim()) {
+      try {
+        const destination = new URL(entry.destination);
+        if (destination.protocol !== "http:" && destination.protocol !== "https:") {
+          return unavailableResponse(502);
+        }
+        return Response.redirect(destination.toString(), 302);
+      } catch {
         return unavailableResponse(502);
       }
-      return Response.redirect(destination.toString(), 302);
     }
 
     return Response.redirect(new URL(`/r/${slug}`, environment.APP_ORIGIN), 302);

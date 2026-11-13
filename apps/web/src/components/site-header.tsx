@@ -10,11 +10,20 @@ export function SiteHeader() {
         <span className="text-xl">loopmark</span>
       </Link>
       <nav aria-label="Main navigation" className="flex items-center gap-2 sm:gap-6">
+        <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/about">
+          About
+        </Link>
         <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/free-qr-codes">
           Free QR codes
         </Link>
         <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/dynamic-qr-codes">
           Dynamic QR
+        </Link>
+        <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/pricing">
+          Pricing
+        </Link>
+        <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/blog">
+          Blog
         </Link>
         <Link className="focus-ring hidden rounded px-2 py-2 text-sm text-[#526c63] hover:text-[#173a32] sm:block" href="/#how-it-works">
           How it works

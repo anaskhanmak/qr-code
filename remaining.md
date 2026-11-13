@@ -10,21 +10,29 @@ This document tracks the product and engineering work that remains before Loopma
 - PostgreSQL data model and Prisma migrations.
 - Email/password account registration, email verification, password reset, and Google sign-in foundations.
 - Static QR generation without an account for URL, text, email, SMS, phone, Wi-Fi, vCard, and location, with PNG/SVG downloads.
-- Dynamic QR builder for URL redirects, business cards, hosted PDF links, and multiple-link pages.
+- Dynamic QR builder and hosted pages for URLs, business cards, hosted PDF links, multiple links, social profiles, coupons, products, videos, image galleries, and external lead forms.
 - Workspace-scoped QR creation and editing; editing preserves a code's slug.
-- Hosted business-card, PDF-link, and multiple-link pages; business cards have a vCard download route.
+- Hosted business-card, PDF-link, multiple-link, and the listed dynamic content pages; business cards have a vCard download route.
+- Workspace invitations with hashed one-time tokens, seven-day expiry, verified-email matching, role assignment, and transactional acceptance.
+- Dashboard search, status filters, cursor pagination, favorites, duplicate/delete, and pause/resume actions; scan summaries are restricted to roles allowed to view analytics.
+- Enterprise inquiry validation and persistence with configurable email notification.
+- Admin route allowlisting, security headers/CSP, keyed scan-IP hashing, and a database-backed CI workflow.
 - Cloudflare Worker short-link resolver with KV caching, app resolver fallback, and cache invalidation.
 - Web and Worker unit tests, typechecks, and lint checks.
 
 ### Important limitations of the current foundation
 
-- Dynamic PDF codes accept an already hosted HTTPS URL. There is no file upload, object storage, signed upload, or WebP conversion pipeline.
+- Dynamic PDF codes accept an already hosted URL. There is no file upload, object storage, signed upload, or WebP conversion pipeline.
 - The redirect cache is Cloudflare KV, not the originally requested Upstash Redis. KV is eventually consistent and is not a substitute for an analytics event queue or rate limiter.
 - The Worker namespace ID in [`apps/redirect/wrangler.toml`](./apps/redirect/wrangler.toml) is a local placeholder. Production Worker and app deployment have not been performed.
-- Scan resolution and redirects exist, but scans are not recorded in an analytics pipeline. Dashboard scan totals, breakdowns, exports, and reports are not implemented.
-- The dynamic QR editor does not yet include the design studio, file manager, status controls, scheduling, scan limits, custom domains, or most advanced options.
-- The current dashboard is a basic list, not the full QR management, billing, team, or analytics dashboard.
-- The marketing shell and generator pages are only a foundation. The full marketing, CMS, SEO, and performance scope remains.
+- Scan events are written to PostgreSQL after the redirect response, with keyed IP hashes and bot/preview classification. The per-code dashboard supports bounded date ranges, daily/country/device/browser breakdowns, and capped CSV export. Next.js `after()` is not a durable queue; retries, retention, workspace rollups, scheduled reports, and operational monitoring remain.
+- The dynamic QR editor supports presets, foreground/background colors, quiet-space margin, and 512–4000px PNG/SVG exports with saved per-code designs. It still lacks logo controls, gradients, PDF/EPS, reusable brand kits, and scannability verification.
+- Dynamic QR types now include feedback, captured lead forms, events (ICS download), and app-store routing. Responses are stored, rate-limited per process, and available in a workspace inbox/CSV export. Uploads/object storage, scheduling, scan limits, custom domains, password protection, and other advanced options remain.
+- Workspace invitations and guarded member role/removal controls are implemented. Hashed API key management and scoped QR read/create endpoints are implemented; API entitlement enforcement, audit history, custom domains, webhooks, and bulk operations are not.
+- Authenticated account JSON export is available with bounded row limits and excludes API secrets, scan hashes, and user-agent strings. A bearer-protected retention job removes aged scan and form response records according to `ANALYTICS_RETENTION_DAYS`.
+- The dashboard lists dynamic codes with search, status filters, cursor pagination, and code actions, but still lacks static-code management, folders, bulk operations, and date filters; it is not the full QR management, billing, team, or analytics dashboard.
+- The marketing pages, metadata, sitemap, and enterprise inquiry flow have foundations; CMS editing, MDX, consent-aware analytics, performance measurement, and full accessibility verification remain.
+- Rate limiting is process-local and is not suitable for distributed production enforcement.
 - A local migration being up to date does not constitute a production database migration, backup policy, or deployment.
 
 ## Remaining product work
@@ -42,14 +50,14 @@ This document tracks the product and engineering work that remains before Loopma
 
 ### 2. Scan analytics and event pipeline
 
-- Record scan events asynchronously so redirect latency is not coupled to analytics storage.
-- Persist timestamp, a keyed/hash-derived IP identifier (never the raw IP), country/city where available, device, OS, browser, language, referrer, and unique/total classification.
-- Select and operate a durable queue and event store; define retries, idempotency, retention, and dead-letter handling.
-- Filter bots, crawlers, and link-preview fetches from human scan totals while documenting the classification behavior.
+- Replace the current deferred database write with a durable queue, retries, idempotency, and dead-letter handling.
+- Scan records currently persist timestamp, keyed IP hash (never raw IP), country/city where available, device, OS, browser, language, referrer, bot/preview classification, and a 24-hour unique estimate.
+- Select and operate a durable event store; define retention and dead-letter handling.
+- Improve bot/crawler/link-preview detection and document the classification behavior.
 - Add visitor-cookie or privacy-aware fingerprint logic for unique-scan estimates and define consent/retention rules.
-- Add per-QR and workspace analytics: time series, unique vs total, country/city, device/OS/browser, peak-hours heatmap, and date ranges.
-- Add CSV/PDF exports and scheduled email reports.
-- Add configurable retention and deletion jobs. Keep analytics data out of the redirect critical path.
+- Per-QR analytics now include daily totals, unique estimates, country, device, and browser breakdowns with bounded date ranges. Add city/OS, peak-hour views, workspace rollups, and chart visualizations.
+- Per-QR CSV export is capped at 10,000 rows and excludes IP hashes and user-agent strings. Add PDF exports and scheduled email reports.
+- Configurable scheduled retention cleanup is implemented for scan events and form responses. Retention remains global rather than per-plan/workspace.
 - Measure redirect latency (including cache misses) and establish uptime/latency alerts against the requested p95 target.
 
 ### 3. Plans, payments, and usage enforcement
@@ -66,13 +74,13 @@ This document tracks the product and engineering work that remains before Loopma
 
 ### 4. Remaining dynamic QR types and builder capabilities
 
-Add validated content schemas, accessible forms, previews, hosted mobile pages, and tests for each type:
+The builder and hosted pages already support product, video, social, gallery, coupon, and external lead-form links. Remaining types and capabilities include:
 
-- Product page, video, social media, image gallery, coupon, feedback, lead generation, custom block-based page, app store, survey, event, password-protected content, business page, and bio page.
+- Custom block-based page, survey, password-protected content, business page, and bio page.
 - Business cards: add the contact-exchange lead form and inbox in addition to the existing vCard download.
-- Lead forms and feedback/survey responses: persist submissions, associate them with the QR and workspace, add abuse controls, inbox views, and CSV export.
-- App Store codes: implement safe iOS/Android detection and configurable store fallback.
-- Events: generate and validate `.ics` downloads.
+- Captured lead forms and feedback: responses persist per QR/workspace, with process-local rate limiting, inbox views, and capped CSV export. Replace process-local abuse controls with shared production limits.
+- App Store codes route to iOS/Android store links with a validated fallback.
+- Event pages validate start/end and provide escaped `.ics` downloads.
 - Password-protected codes: hash secrets, throttle attempts, avoid leaking protected content, and provide recovery/edit behavior.
 - Custom pages: define a constrained block schema, sanitize rendered content, and ensure editable previews match hosted output.
 
@@ -80,21 +88,21 @@ Expand the builder into the specified flow: basic info, appearance, content, ima
 
 ### 5. Dashboard, workspaces, and integrations
 
-- Build QR list/grid views with All/Dynamic/Static/Favourites tabs, search, filters, folders, status, date, and pagination.
-- Add thumbnails and code actions for edit, download, duplicate, favourite, pause/resume, delete, and folder moves.
+- Add Static-code views and date filters to the existing dynamic/favorites list, search, status filtering, and cursor pagination.
+- Add QR thumbnails and downloads, plus folder moves; edit, duplicate, favourite, pause/resume, and delete actions are implemented for dynamic codes.
 - Add bulk selection and bulk delete/move/download/pause.
 - Add static QR persistence only if the product intends account-managed static codes; preserve the no-account static generator.
 - Add CSV-driven bulk QR creation with validation, preview, useful row-level errors, and ZIP export.
-- Add folders and persistent favorite/status controls.
-- Implement team invitations, role-based access (Owner/Admin/Editor/Viewer), membership management, and audit history.
+- Add folders and persistent folder assignment; favorite and status controls are implemented.
+- Workspace invitations, role-based view/edit access, member role changes, and removal exist. Add audit history.
 - Add custom-domain setup and verification, certificate/SSL lifecycle, ownership checks, and safe redirect-domain handling.
-- Add API key creation, hashed key storage, rotation/revocation, scoped REST endpoints, rate limits, usage visibility, and OpenAPI documentation.
+- API key creation, SHA-256 hashed storage, expiry/revocation, scoped QR read/create REST endpoints, and process-local limits exist. Add shared limits, plan entitlements, broader endpoints, usage visibility, and OpenAPI documentation.
 - Add signed webhook configuration, event delivery/retries, secret rotation, and delivery logs for scan and lead events.
 - Add account settings, data export, account deletion, billing portal, invoices, and clear session/security controls.
 
 ### 6. Admin and CMS
 
-- Add role-gated `/admin` access with server-side authorization on every action and route.
+- `/admin` is gated by the `ADMIN_EMAILS` allowlist and no longer presents fabricated operational data. Add database-backed admin tools and server-side authorization for each new action.
 - Add user, workspace, subscription, plan, pricing, and coupon management.
 - Add QR moderation, destination blocking, abuse reports, and an auditable moderation history.
 - Add platform scan statistics with appropriate access controls and aggregation.
@@ -104,8 +112,7 @@ Expand the builder into the specified flow: basic info, appearance, content, ima
 ### 7. Marketing site, SEO, and product content
 
 - Complete the home page with original copy/assets, accurate product screenshots, functional QR-type tabs, design showcase, server-rendered real metrics, editable placeholder testimonials, product-specific FAQ, pricing, enterprise CTA, and footer.
-- Complete `/free-qr-codes`, `/dynamic-qr-codes`, `/pricing`, `/about`, `/contact-enterprise`, `/privacy`, `/terms`, `/refund-policy`, and `/blog`.
-- Persist enterprise inquiries and notify the sales inbox; add validation, spam controls, and clear success/error feedback.
+- The public pages listed below exist, and enterprise inquiries are validated, persisted, and optionally emailed. Continue with editorial, legal, trust, and UX review.
 - Implement MDX blog content and editorial metadata.
 - Add per-page metadata, canonical URLs, Open Graph metadata/images via `next/og`, sitemap, robots rules, and JSON-LD for Organization, WebSite, SoftwareApplication, FAQPage, and pricing Product/Offer entities.
 - Make WhatsApp/chat contact configurable and ensure the floating control is accessible and unobtrusive.
@@ -121,7 +128,7 @@ Expand the builder into the specified flow: basic info, appearance, content, ima
 - Add CSRF protections where required by the framework and deployment, strict security headers/CSP, secure cookies, and production HTTPS enforcement.
 - Add password-protected QR hashing, attempt throttling, and tests for brute-force resistance.
 - Add cookie consent and a GA4 integration through Partytown only after consent and configuration. Ensure one tag loads once and is deferred.
-- Implement user data export, account deletion, configurable retention, and documented data processing. Do not retain raw IP addresses.
+- User data export and configurable scan/form-response retention are implemented. Add account deletion and review/document data processing. Do not retain raw IP addresses.
 - Review Pakistan PDPA/GDPR applicability with qualified counsel; technical controls alone do not establish legal compliance.
 - Add dependency and secret scanning, security headers checks, abuse monitoring, and incident-response documentation.
 
@@ -141,7 +148,7 @@ Expand the builder into the specified flow: basic info, appearance, content, ima
 - Expand Vitest coverage for QR rendering, content validation, plan entitlements, slug resolution, cache invalidation, URL safety, analytics aggregation, and webhook idempotency.
 - Add Playwright end-to-end coverage for sign-up/verification, create/edit dynamic QR, scan, view analytics, and upgrade; include static generation/download and mobile/keyboard flows.
 - Run test suites against isolated databases and resettable fixtures; avoid depending on a developer's personal local database.
-- Add GitHub Actions for lint, typecheck, unit tests, database migration checks, Worker validation, and Playwright E2E. Add preview deployment only after secrets/environments are configured.
+- GitHub Actions now runs web lint, typecheck, unit tests, production build, Prisma validation/migrations against PostgreSQL, and Worker checks. Add Playwright E2E and deployment checks only after secrets/environments are configured.
 - Add a safe production migration procedure and verify migration status before deployment.
 - Configure Vercel (or chosen app host), production PostgreSQL (Neon/Supabase), Cloudflare Worker/KV, custom domains, email sender/domain authentication, OAuth callbacks, payment webhooks, analytics, and error monitoring.
 - Create real Cloudflare KV namespace IDs and production Worker secrets; set Worker `APP_ORIGIN` and app `NEXT_PUBLIC_SHORT_URL` to the actual domains.
