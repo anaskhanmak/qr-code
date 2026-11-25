@@ -1,5 +1,13 @@
 import { db } from "@loopmark/db";
 import { hashWorkspaceApiKey, isWorkspaceApiKey } from "@/lib/workspace-api-keys";
+import { createRateLimiter } from "@/lib/url-safety";
+
+export const apiKeyRateLimit = createRateLimiter({ windowMs: 60_000, maxRequests: 120 });
+
+export function getApiRateLimitRetryAfter(keyId: string): number | null {
+  const result = apiKeyRateLimit(keyId);
+  return result.allowed ? null : Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+}
 
 export async function authorizeApiKey(request: Request, requiredScope: string) {
   const authorization = request.headers.get("authorization") ?? "";

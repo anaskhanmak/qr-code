@@ -13,7 +13,7 @@ export function QrResponseForm({
   prompt,
 }: {
   slug: string;
-  kind: "lead" | "feedback";
+  kind: "lead" | "feedback" | "contact";
   prompt?: string;
 }) {
   const [state, action, pending] = useActionState(submitQrFormResponseAction, initialState);
@@ -25,7 +25,7 @@ export function QrResponseForm({
         <label htmlFor={`website-${slug}`}>Leave this field empty</label>
         <input id={`website-${slug}`} tabIndex={-1} autoComplete="off" name="website" />
       </div>
-      {kind === "lead" ? (
+      {kind === "lead" || kind === "contact" ? (
         <>
           <label className="block text-sm font-semibold text-[#284b40]">
             Your name
@@ -36,7 +36,7 @@ export function QrResponseForm({
             <input name="email" required type="email" maxLength={320} autoComplete="email" className={inputClass} />
           </label>
           <label className="block text-sm font-semibold text-[#284b40]">
-            How can we help?
+            {kind === "contact" ? "Message (optional)" : "How can we help?"}
             <textarea name="message" maxLength={2000} rows={4} className={inputClass} />
           </label>
         </>
@@ -64,10 +64,10 @@ export function QrResponseForm({
         <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{state.success}</p>
       ) : (
         <button disabled={pending} className="focus-ring w-full rounded-xl bg-[#173a32] px-5 py-3.5 text-sm font-bold text-white disabled:opacity-60">
-          {pending ? "Sending..." : kind === "feedback" ? "Send feedback" : "Send message"}
+          {pending ? "Sending..." : kind === "feedback" ? "Send feedback" : kind === "contact" ? "Share contact details" : "Send message"}
         </button>
       )}
-      <p className="text-xs leading-5 text-[#81948a]">Your response is shared with the workspace that manages this QR code.</p>
+      <p className="text-xs leading-5 text-[#81948a]">{kind === "contact" ? "Your contact details are shared with the owner of this business card." : "Your response is shared with the workspace that manages this QR code."}</p>
     </form>
   );
 }

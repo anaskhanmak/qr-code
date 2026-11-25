@@ -81,6 +81,11 @@ export default async function DynamicQRPage({
             <a href={contactCardUrl} className="focus-ring mt-7 block rounded-xl bg-[#173a32] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#275749]">
               Save contact
             </a>
+            <div className="mt-7 border-t border-[#edf0eb] pt-6 text-left">
+              <h2 className="text-lg font-semibold text-[#173a32]">Exchange contact details</h2>
+              <p className="mt-2 text-sm leading-6 text-[#71877c]">Share your details with {content.fullName} so they can follow up.</p>
+              <QrResponseForm slug={qrCode.slug!} kind="contact" />
+            </div>
           </div>
         )}
 

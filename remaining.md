@@ -12,9 +12,9 @@ This document tracks the product and engineering work that remains before Loopma
 - Static QR generation without an account for URL, text, email, SMS, phone, Wi-Fi, vCard, and location, with PNG/SVG downloads.
 - Dynamic QR builder and hosted pages for URLs, business cards, hosted PDF links, multiple links, social profiles, coupons, products, videos, image galleries, and external lead forms.
 - Workspace-scoped QR creation and editing; editing preserves a code's slug.
-- Hosted business-card, PDF-link, multiple-link, and the listed dynamic content pages; business cards have a vCard download route.
+- Hosted business-card contact exchange and vCard download, PDF-link, multiple-link, and the listed dynamic content pages.
 - Workspace invitations with hashed one-time tokens, seven-day expiry, verified-email matching, role assignment, and transactional acceptance.
-- Dashboard search, status filters, cursor pagination, favorites, duplicate/delete, and pause/resume actions; scan summaries are restricted to roles allowed to view analytics.
+- Dashboard search, status/date/folder filters, cursor pagination, QR previews, PNG/SVG downloads, workspace folders, bulk pause/resume/delete/move, favorites, duplicate/delete, and pause/resume actions; bulk operations are capped at 50 codes and scan summaries are restricted to roles allowed to view analytics.
 - Enterprise inquiry validation and persistence with configurable email notification.
 - Admin route allowlisting, security headers/CSP, keyed scan-IP hashing, and a database-backed CI workflow.
 - Cloudflare Worker short-link resolver with KV caching, app resolver fallback, and cache invalidation.
@@ -27,10 +27,10 @@ This document tracks the product and engineering work that remains before Loopma
 - The Worker namespace ID in [`apps/redirect/wrangler.toml`](./apps/redirect/wrangler.toml) is a local placeholder. Production Worker and app deployment have not been performed.
 - Scan events are written to PostgreSQL after the redirect response, with keyed IP hashes and bot/preview classification. The per-code dashboard supports bounded date ranges, daily/country/device/browser breakdowns, and capped CSV export. Next.js `after()` is not a durable queue; retries, retention, workspace rollups, scheduled reports, and operational monitoring remain.
 - The dynamic QR editor supports presets, foreground/background colors, quiet-space margin, and 512–4000px PNG/SVG exports with saved per-code designs. It still lacks logo controls, gradients, PDF/EPS, reusable brand kits, and scannability verification.
-- Dynamic QR types now include feedback, captured lead forms, events (ICS download), and app-store routing. Responses are stored, rate-limited per process, and available in a workspace inbox/CSV export. Uploads/object storage, scheduling, scan limits, custom domains, password protection, and other advanced options remain.
-- Workspace invitations and guarded member role/removal controls are implemented. Hashed API key management and scoped QR read/create endpoints are implemented; API entitlement enforcement, audit history, custom domains, webhooks, and bulk operations are not.
+- Dynamic QR types now include feedback, captured lead forms, business-card contact exchange, events (ICS download), and app-store routing. Responses are stored, rate-limited per process, and available in a workspace inbox/CSV export. Uploads/object storage, scheduling, scan limits, custom domains, password protection, and other advanced options remain.
+- Workspace invitations and guarded member role/removal controls are implemented. Hashed API key management, workspace-scoped QR CRUD endpoints with OpenAPI documentation, and limited dynamic-code bulk actions are implemented; API entitlement enforcement, audit history, custom domains, webhooks, and bulk CSV/ZIP workflows remain.
 - Authenticated account JSON export is available with bounded row limits and excludes API secrets, scan hashes, and user-agent strings. A bearer-protected retention job removes aged scan and form response records according to `ANALYTICS_RETENTION_DAYS`.
-- The dashboard lists dynamic codes with search, status filters, cursor pagination, and code actions, but still lacks static-code management, folders, bulk operations, and date filters; it is not the full QR management, billing, team, or analytics dashboard.
+- The dashboard lists dynamic codes with search, status/date/folder filters, cursor pagination, QR previews, PNG/SVG downloads, workspace folders, and bulk pause/resume/delete/move (capped at 50 codes per operation). Static-code management and bulk download/ZIP remain; it is not the full QR management, billing, team, or analytics dashboard.
 - The marketing pages, metadata, sitemap, and enterprise inquiry flow have foundations; CMS editing, MDX, consent-aware analytics, performance measurement, and full accessibility verification remain.
 - Rate limiting is process-local and is not suitable for distributed production enforcement.
 - A local migration being up to date does not constitute a production database migration, backup policy, or deployment.
@@ -77,7 +77,7 @@ This document tracks the product and engineering work that remains before Loopma
 The builder and hosted pages already support product, video, social, gallery, coupon, and external lead-form links. Remaining types and capabilities include:
 
 - Custom block-based page, survey, password-protected content, business page, and bio page.
-- Business cards: add the contact-exchange lead form and inbox in addition to the existing vCard download.
+- Business cards: contact-exchange form and inbox are implemented alongside the existing vCard download.
 - Captured lead forms and feedback: responses persist per QR/workspace, with process-local rate limiting, inbox views, and capped CSV export. Replace process-local abuse controls with shared production limits.
 - App Store codes route to iOS/Android store links with a validated fallback.
 - Event pages validate start/end and provide escaped `.ics` downloads.
@@ -88,15 +88,14 @@ Expand the builder into the specified flow: basic info, appearance, content, ima
 
 ### 5. Dashboard, workspaces, and integrations
 
-- Add Static-code views and date filters to the existing dynamic/favorites list, search, status filtering, and cursor pagination.
-- Add QR thumbnails and downloads, plus folder moves; edit, duplicate, favourite, pause/resume, and delete actions are implemented for dynamic codes.
-- Add bulk selection and bulk delete/move/download/pause.
+- Add Static-code views to the existing dynamic/favorites list, search, status/date/folder filtering, and cursor pagination.
+- Add bulk download/ZIP and bulk CSV creation; dynamic QR previews, PNG/SVG downloads, selection, pause/resume, delete, and folder move are implemented.
 - Add static QR persistence only if the product intends account-managed static codes; preserve the no-account static generator.
 - Add CSV-driven bulk QR creation with validation, preview, useful row-level errors, and ZIP export.
-- Add folders and persistent folder assignment; favorite and status controls are implemented.
+- Folder creation, rename/delete, assignment, and favorite/status controls are implemented.
 - Workspace invitations, role-based view/edit access, member role changes, and removal exist. Add audit history.
 - Add custom-domain setup and verification, certificate/SSL lifecycle, ownership checks, and safe redirect-domain handling.
-- API key creation, SHA-256 hashed storage, expiry/revocation, scoped QR read/create REST endpoints, and process-local limits exist. Add shared limits, plan entitlements, broader endpoints, usage visibility, and OpenAPI documentation.
+- API key creation, SHA-256 hashed storage, expiry/revocation, scoped QR CRUD REST endpoints, OpenAPI documentation, and process-local limits exist. Add shared limits, plan entitlements, broader platform endpoints, and usage visibility.
 - Add signed webhook configuration, event delivery/retries, secret rotation, and delivery logs for scan and lead events.
 - Add account settings, data export, account deletion, billing portal, invoices, and clear session/security controls.
 
@@ -164,7 +163,7 @@ This sequence retains the original phases while separating launch blockers from 
 2. **Phase 4 — Scan analytics:** add asynchronous logging, privacy-aware scan classification, dashboards, exports, retention, and monitoring.
 3. **Phase 5 — Billing and plan limits:** implement provider/webhooks, plans, trials, usage enforcement, downgrade handling, and billing UI.
 4. **Phase 6 — Remaining QR types:** add hosted content types, form-response inboxes, file storage, and advanced builder features.
-5. **Phase 7 — Teams and integrations:** add collaboration, custom domains, API keys, REST/OpenAPI, webhooks, and bulk operations.
+5. **Phase 7 — Teams and integrations:** finish collaboration and API entitlements, custom domains, REST/OpenAPI, webhooks, and bulk CSV/ZIP workflows.
 6. **Phase 8 — Admin:** add moderation, CMS, pricing controls, platform reporting, and admin auditability.
 7. **Phase 9 — Marketing completion:** finish public pages, SEO/schema, consent-aware analytics, performance, and accessibility.
 8. **Phase 10 — Launch hardening:** finish security/privacy review, CI/E2E, operations, backup/restore, monitoring, and production deployment.

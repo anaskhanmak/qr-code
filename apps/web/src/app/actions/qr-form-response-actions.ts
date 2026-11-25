@@ -6,6 +6,7 @@ import type { FormState } from "@/app/actions/auth-actions";
 import { parseDynamicContent } from "@/lib/dynamic-qr";
 import { createRateLimiter } from "@/lib/url-safety";
 import { hashIdentifier } from "@/lib/scan-analytics";
+import { getPublicResponseKind } from "@/lib/qr-form-responses";
 import { z } from "zod";
 
 const responseLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, maxRequests: 8 });
@@ -55,10 +56,12 @@ export async function submitQrFormResponseAction(
 
   const content = parseDynamicContent(qrCode.content);
   if (!content) return { error: "This form is no longer available." };
-  const isLeadForm = content.type === "lead_form" && content.mode === "capture";
-  const isFeedback = content.type === "feedback";
-  if (!isLeadForm && !isFeedback) return { error: "This form is no longer available." };
-  if (isLeadForm && (!parsed.data.name || !parsed.data.email)) {
+  const responseKind = getPublicResponseKind(content);
+  if (!responseKind) return { error: "This form is no longer available." };
+  const isContactExchange = responseKind === "CONTACT";
+  const isLeadForm = responseKind === "LEAD";
+  const isFeedback = responseKind === "FEEDBACK";
+  if ((isLeadForm || isContactExchange) && (!parsed.data.name || !parsed.data.email)) {
     return { error: "Enter your name and a valid email address." };
   }
   if (isFeedback && !parsed.data.rating) return { error: "Choose a rating from 1 to 5." };
@@ -68,12 +71,18 @@ export async function submitQrFormResponseAction(
     data: {
       qrCodeId: qrCode.id,
       workspaceId: qrCode.workspaceId,
-      kind: isLeadForm ? "LEAD" : "FEEDBACK",
+      kind: responseKind,
       name: parsed.data.name || null,
       email: parsed.data.email || null,
       rating: isFeedback ? parsed.data.rating : null,
       message: parsed.data.message || null,
     },
   });
-  return { success: isFeedback ? content.thankYouMessage : "Thanks! Your message has been sent." };
+  return {
+    success: isFeedback && content.type === "feedback"
+      ? content.thankYouMessage
+      : isContactExchange
+        ? "Thanks! Your contact details were shared with the card owner."
+        : "Thanks! Your message has been sent.",
+  };
 }

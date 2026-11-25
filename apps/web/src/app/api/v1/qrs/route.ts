@@ -1,27 +1,25 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@loopmark/db";
-import { authorizeApiKey } from "@/lib/api-key-auth";
+import { authorizeApiKey, getApiRateLimitRetryAfter } from "@/lib/api-key-auth";
 import { dynamicQRTypes, parseDynamicContent } from "@/lib/dynamic-qr";
 import { generateSlug, getShortUrl } from "@/lib/dynamic-qr";
-import { createRateLimiter } from "@/lib/url-safety";
 import { canCreateDynamicCode, getPlanUpgradeMessage } from "@/lib/plans";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const apiRateLimit = createRateLimiter({ windowMs: 60_000, maxRequests: 120 });
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   content: z.unknown(),
 });
 
 function rateLimitResponse(keyId: string) {
-  const result = apiRateLimit(keyId);
-  if (result.allowed) return null;
+  const retryAfter = getApiRateLimitRetryAfter(keyId);
+  if (retryAfter === null) return null;
   return NextResponse.json(
     { error: "Rate limit exceeded." },
-    { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil(result.retryAfterMs / 1000))) } },
+    { status: 429, headers: { "Retry-After": String(retryAfter) } },
   );
 }
 

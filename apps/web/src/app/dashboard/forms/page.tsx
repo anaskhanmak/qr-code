@@ -57,7 +57,7 @@ export default async function FormResponsesPage() {
             <article key={response.id} className="rounded-2xl border border-[#e3e9de] bg-white p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#759078]">{response.kind === "FEEDBACK" ? "Feedback" : "Lead"} · {response.qrCode.name}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#759078]">{response.kind === "FEEDBACK" ? "Feedback" : response.kind === "CONTACT" ? "Contact exchange" : "Lead"} · {response.qrCode.name}</p>
                   <p className="mt-2 font-semibold">{response.name ?? response.email ?? "Anonymous visitor"}</p>
                   {response.email && <a className="focus-ring mt-1 inline-block rounded text-sm text-[#315947] underline underline-offset-4" href={`mailto:${response.email}`}>{response.email}</a>}
                 </div>

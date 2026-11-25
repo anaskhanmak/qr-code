@@ -125,6 +125,7 @@ model Workspace {
   members       WorkspaceMember[]
   invitations   WorkspaceInvitation[]
   qrCodes       QRCode[]
+  qrFolders     QRFolder[]
   customDomains CustomDomain[]
   apiKeys       ApiKey[]
   webhooks      WebhookEndpoint[]
@@ -220,10 +221,26 @@ model QRCode {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      QRFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   scans       QRCodeScan[]
   formResponses QRFormResponse[]
 
   @@index([workspaceId, kind, status])
+  @@index([workspaceId, createdAt])
+  @@index([folderId, createdAt])
+}
+
+model QRFolder {
+  id          String     @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  qrCodes     QRCode[]
+
+  @@unique([workspaceId, name])
   @@index([workspaceId, createdAt])
 }
 

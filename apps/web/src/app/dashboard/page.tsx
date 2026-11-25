@@ -6,8 +6,18 @@ import { getShortUrl, parseDynamicContent } from "@/lib/dynamic-qr";
 import { toggleQrFavoriteAction, toggleQrStatusAction } from "@/app/actions/qr-management-actions";
 import { canManageMembers, canViewAnalytics } from "@/lib/workspace-access";
 import { QRManagementControls } from "@/components/qr-management-controls";
+import { QRBulkCheckbox, QRBulkManagement } from "@/components/qr-bulk-management";
+import { QrCanvas } from "@/components/qr-canvas";
+import { QRDownloadButton } from "@/components/qr-download-button";
+import { parseQRDesign } from "@/lib/qr-design";
 
 export const metadata = { title: "Your workspace", robots: { index: false } };
+
+function parseDateFilter(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? undefined : date;
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -21,20 +31,38 @@ export default async function DashboardPage({
     q?: string;
     status?: string;
     cursor?: string;
+    folder?: string;
+    fromDate?: string;
+    toDate?: string;
   }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  const { created, updated, cacheRefresh, statusUpdated, view, q, status, cursor } = await searchParams;
+  const { created, updated, cacheRefresh, statusUpdated, view, q, status, cursor, folder, fromDate, toDate } = await searchParams;
   const showFavorites = view === "favorites";
   const search = q?.trim().slice(0, 100) ?? "";
   const statusFilter = status === "ACTIVE" || status === "PAUSED" || status === "EXPIRED" ? status : undefined;
   const validCursor = cursor && /^[a-zA-Z0-9_-]{1,40}$/.test(cursor) ? cursor : undefined;
+  const folderFilter = folder === "unfiled" || (folder && /^[a-zA-Z0-9_-]{1,40}$/.test(folder)) ? folder : undefined;
+  const createdAtFilter: { gte?: Date; lt?: Date } = {};
+  const startDate = parseDateFilter(fromDate);
+  const endDate = parseDateFilter(toDate);
+  if (startDate) createdAtFilter.gte = startDate;
+  if (endDate) {
+    const exclusiveEnd = new Date(endDate);
+    exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+    createdAtFilter.lt = exclusiveEnd;
+  }
   const workspace = await db.workspace.findFirst({
     where: { members: { some: { userId: session.user.id } } },
     select: {
       id: true,
       name: true,
+      qrFolders: {
+        orderBy: { name: "asc" },
+        take: 100,
+        select: { id: true, name: true },
+      },
       members: {
         where: { userId: session.user.id },
         take: 1,
@@ -46,11 +74,13 @@ export default async function DashboardPage({
           ...(showFavorites ? { favorite: true } : {}),
           ...(statusFilter ? { status: statusFilter } : {}),
           ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+          ...(folderFilter === "unfiled" ? { folderId: null } : folderFilter ? { folderId: folderFilter } : {}),
+          ...(Object.keys(createdAtFilter).length ? { createdAt: createdAtFilter } : {}),
         },
         orderBy: { createdAt: "desc" },
         take: 51,
         ...(validCursor ? { cursor: { id: validCursor }, skip: 1 } : {}),
-        select: { id: true, name: true, slug: true, status: true, favorite: true, content: true, createdAt: true },
+        select: { id: true, name: true, slug: true, status: true, favorite: true, content: true, design: true, createdAt: true },
       },
     },
   });
@@ -133,9 +163,26 @@ export default async function DashboardPage({
               <option value="EXPIRED">Expired</option>
             </select>
           </label>
+          <label className="text-sm font-semibold text-[#315947]">
+            Folder
+            <select name="folder" defaultValue={folderFilter ?? ""} className="focus-ring mt-2 rounded-xl border border-[#dce4d9] bg-white px-4 py-3 text-sm font-normal text-[#173a32]">
+              <option value="">All folders</option>
+              <option value="unfiled">Unfiled</option>
+              {workspace?.qrFolders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-[#315947]">
+            Created from
+            <input type="date" name="fromDate" defaultValue={startDate?.toISOString().slice(0, 10) ?? ""} className="focus-ring mt-2 block rounded-xl border border-[#dce4d9] bg-white px-4 py-3 text-sm font-normal text-[#173a32]" />
+          </label>
+          <label className="text-sm font-semibold text-[#315947]">
+            Created to
+            <input type="date" name="toDate" defaultValue={endDate?.toISOString().slice(0, 10) ?? ""} className="focus-ring mt-2 block rounded-xl border border-[#dce4d9] bg-white px-4 py-3 text-sm font-normal text-[#173a32]" />
+          </label>
           {showFavorites && <input type="hidden" name="view" value="favorites" />}
           <button className="focus-ring rounded-xl bg-[#173a32] px-5 py-3 text-sm font-bold text-white">Filter</button>
         </form>
+        {workspace && <QRBulkManagement folders={workspace.qrFolders} workspaceId={workspace.id} />}
         {displayedQrCodes.length ? (
           <>
             {showAnalytics && (
@@ -175,6 +222,7 @@ export default async function DashboardPage({
                   <article key={qrCode.id} className="rounded-2xl border border-[#e3e9de] bg-white p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
+                        <QRBulkCheckbox qrId={qrCode.id} />
                         <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#759078]">{content ? content.type.replaceAll("_", " ") : "Dynamic QR"}</p>
                         <h3 className="mt-2 font-bold">{qrCode.name}</h3>
                       </div>
@@ -182,6 +230,23 @@ export default async function DashboardPage({
                         {isExpired ? "Expired" : qrCode.status === "PAUSED" ? "Paused" : "Active"}
                       </span>
                     </div>
+                    {qrCode.slug && (() => {
+                      const design = parseQRDesign(qrCode.design);
+                      return (
+                        <div className="mt-4 flex items-center gap-3">
+                          <QrCanvas
+                            value={getShortUrl(qrCode.slug)}
+                            label={`${qrCode.name} QR code`}
+                            foregroundColor={design?.foregroundColor}
+                            backgroundColor={design?.backgroundColor}
+                            margin={design?.margin}
+                            size={96}
+                            className="size-20 rounded-lg"
+                          />
+                          <QRDownloadButton value={getShortUrl(qrCode.slug)} name={qrCode.name} design={design} />
+                        </div>
+                      );
+                    })()}
                     <p className="mt-3 break-all text-xs text-[#71877c]">{qrCode.slug ? getShortUrl(qrCode.slug) : "Short link unavailable"}</p>
                     <p className="mt-3 text-xs text-[#9aa89e]">Created {qrCode.createdAt.toLocaleDateString()}</p>
                     {showAnalytics && (
@@ -235,6 +300,9 @@ export default async function DashboardPage({
                     ...(search ? { q: search } : {}),
                     ...(statusFilter ? { status: statusFilter } : {}),
                     ...(showFavorites ? { view: "favorites" } : {}),
+                    ...(folderFilter ? { folder: folderFilter } : {}),
+                    ...(startDate ? { fromDate: startDate.toISOString().slice(0, 10) } : {}),
+                    ...(endDate ? { toDate: endDate.toISOString().slice(0, 10) } : {}),
                     cursor: displayedQrCodes[displayedQrCodes.length - 1].id,
                   }).toString()}`}
                   className="focus-ring inline-flex rounded-xl border border-[#dce4d9] bg-white px-5 py-3 text-sm font-semibold text-[#173a32]"
